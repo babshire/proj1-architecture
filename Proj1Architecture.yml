@@ -10,6 +10,10 @@ Mappings:
       ImageId: ami-e0ba5c83
     us-west-2:
       ImageId: ami-a9d09ed1
+  
+  RegionToNatId:
+    us-east-1:
+      ImageId: ami-01623d7b
 Resources:
   #Network Configurations
   VPC:
@@ -35,10 +39,16 @@ Resources:
     Type: 'AWS::EC2::RouteTable'
     Properties:
       VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Public Subnet Route Table.
   PrivateSubnetRouteTable:
     Type: 'AWS::EC2::RouteTable'
     Properties:
       VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Private Subnet Route Table.
 
   RouteToInternetGateway:
     Type: 'AWS::EC2::Route'
@@ -46,12 +56,24 @@ Resources:
       RouteTableId: !Ref PublicSubnetRouteTable
       GatewayId: !Ref InternetGateway
       DestinationCidrBlock: 0.0.0.0/0
+  
+  RouteToNatInstance:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      InstanceId: !Ref NatInstance
+      DestinationCidrBlock: 0.0.0.0/0
 
-  SubnetRouteTableAssociation:
+  PublicSubnetRouteTableAssociation:
     Type: 'AWS::EC2::SubnetRouteTableAssociation'
     Properties:
       RouteTableId: !Ref PublicSubnetRouteTable
       SubnetId: !Ref PublicSubnet
+  PrivateSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref PrivateSubnetRouteTable
+      SubnetId: !Ref PrivateSubnet
 
   InternetGatewayAttachment:
     Type: 'AWS::EC2::VPCGatewayAttachment'
@@ -85,6 +107,23 @@ Resources:
           Value: CloudFormation Created
         - Key: Modification
           Value: Success
+
+  NatInstance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !FindInMap [RegionToNatId, !Ref 'AWS::Region', ImageId]
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Ref PublicSubnet
+          GroupSet:
+            - !Ref WebAppSecurityGroup
+      Tags:
+        - Key: Name
+          Value: NatInstance
+  
 
   WebAppSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
